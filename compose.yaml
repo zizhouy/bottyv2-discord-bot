@@ -1,0 +1,8 @@
+services:
+  bottyv2:
+    build: .
+    image: bottyv2:local
+    container_name: bottyv2
+    env_file:
+      - .env
+    restart: unless-stopped
