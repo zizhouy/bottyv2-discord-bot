@@ -4,7 +4,7 @@ import asyncio
 import json
 import time
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "localhost:11434/api/chat")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 MODEL = "llama3.1:8b-instruct-q4_K_M"
 
 SYSTEM_MESSAGE = {
