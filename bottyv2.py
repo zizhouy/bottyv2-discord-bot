@@ -110,4 +110,12 @@ async def ask(interaction: discord.Interaction, question: str):
         print(f"Full text -----\n{full_text}\n-----")
         mem.append_assistant(channel_id, full_text)
 
+# alive heartbeat task
+@bot.event
+async def on_ready():
+    print(f'We have logged in as {bot.user}')
+    from heartbeat import heartbeat_task
+    bot.loop.create_task(heartbeat_task())
+
+
 bot.run(TOKEN)
