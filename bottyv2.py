@@ -91,6 +91,8 @@ async def ask(interaction: discord.Interaction, question: str):
             full_text += chunk    
 
             buffer_len = len(message_buffer)
+
+            # if cutting
             if buffer_len > BUFFER_SOFT_CUT and "\n" in chunk or buffer_len > BUFFER_HARD_CUT:
                 end_line_index = message_buffer.rfind("\n")
                 if end_line_index == -1:
@@ -100,13 +102,12 @@ async def ask(interaction: discord.Interaction, question: str):
 
                 await last_message.edit(content=message_buffer[:end_line_index + 1])
                 message_buffer = message_buffer[end_line_index + 1:]
-                if not chunk or len(chunk) < 5:
-                    break
-                last_message = await interaction.followup.send(message_buffer, wait=True)
-            else:
-                await last_message.edit(content=message_buffer)
+                if chunk:
+                    last_message = await interaction.followup.send(message_buffer + "…", wait=True)
+            else: # continue editing last message
+                await last_message.edit(content=message_buffer + "…")
 
-    
+        await last_message.edit(content=message_buffer)
         print(f"Full text -----\n{full_text}\n-----")
         mem.append_assistant(channel_id, full_text)
 
