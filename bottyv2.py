@@ -78,7 +78,7 @@ async def ask(interaction: discord.Interaction, question: str):
         mem.append_user(channel_id, f"{username}: {question}")
         history = mem.get(channel_id)
     
-        
+        # Show user message
         await interaction.followup.send(f"**@ChatGPT** {question}\n\n")
 
         message_buffer = ""
@@ -100,7 +100,7 @@ async def ask(interaction: discord.Interaction, question: str):
 
                 await last_message.edit(content=message_buffer[:end_line_index + 1])
                 message_buffer = message_buffer[end_line_index + 1:]
-                if not chunk:
+                if not chunk or len(chunk) < 5:
                     break
                 last_message = await interaction.followup.send(message_buffer, wait=True)
             else:
