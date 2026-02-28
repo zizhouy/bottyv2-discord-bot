@@ -5,7 +5,7 @@ import json
 import time
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
-MODEL = "llama3.1:8b-instruct-q4_K_M"
+MODEL = os.getenv("MODEL", "llama3.1:8b")
 
 SYSTEM_MESSAGE = {
     "role": "system",
