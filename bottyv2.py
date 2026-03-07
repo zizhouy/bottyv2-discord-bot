@@ -5,7 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 from collections import defaultdict
 
-from msg_request import stream_msg
+from msg_request import stream_msg, stream_msg_openai
 from memory import ChannelMemory
 
 intents = discord.Intents.default()
@@ -88,7 +88,7 @@ async def ask(interaction: discord.Interaction, question: str):
 
         last_message = await interaction.followup.send("…", wait=True)
 
-        async for chunk in stream_msg(history, emit_interval=0.5):
+        async for chunk in stream_msg_openai(history, emit_interval=0.5):
             message_buffer += chunk
             full_text += chunk    
 

@@ -4,6 +4,8 @@ import asyncio
 import json
 import time
 
+from typing import cast, Any
+
 from openai import AsyncOpenAI
 
 # URL for local LLM API running through Ollama
@@ -20,6 +22,7 @@ SYSTEM_MESSAGE = {
 
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = AsyncOpenAI()
 
 
 # Ollama
@@ -95,15 +98,13 @@ async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
         yield "".join(buffer)
 
 # OpenAI
-# TODO: Complete
-async def stream_msg_openai():
-    client = AsyncOpenAI(
-        api_key=OPENAI_API_KEY
-    )
+# TODO: Add support for sending status updates based on response types (thinking, searching, etc.)
+async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
 
     stream = await client.responses.create(
         model="gpt-5-mini",
-        input=[],
+        input=cast(Any, messages),
+        stream=True,
         text={
             "format": {
                 "type": "text"
@@ -131,9 +132,77 @@ async def stream_msg_openai():
         ]
     )
 
+    # Response types we care about: (response.<type>)
+    # created                       - "Thinking…"
+    # in_progress                   - "Thinking…"
+    # output_item.added             - 
+    # output_text.delta             - for streaming chunks
+    # output_text.done              - specific part is done
+    # output_item.done              - 
+    # reasoning_summary_text.delta  - "Planning…"
+    # web_search_call.searching     - "Searching the web…"
+    # web_search_call.completed     - "Found sources…"
+    # completed                     -
+
+    text_buffer = ""
+    last_emit = time.monotonic()
+
+    async for event in stream:
+
+        t = event.type
+        
+        if t in ("response.created", "response.in_progress"):
+            status = "thinking"
+
+        elif t == "response.reasoning_summary_text.delta":
+            status = "reasoning"
+            # optional: accumulate summary text
+
+        elif t == "response.web_search_call.searching":
+            status = "searching_web"
+
+        elif t == "response.web_search_call.completed":
+            status = "writing_answer"
+
+        elif t == "response.output_text.delta":
+            # NOTE: type: ignore because elif t == "..." should guarantee .delta exists
+            text_buffer += event.delta # type: ignore
+
+        elif t == "response.output_text.done":
+            pass
+
+        elif t == "response.output_item.done":
+            pass
+
+        elif t == "response.completed":
+            status = "done"
+        
+        now = time.monotonic()
+        if text_buffer and (now - last_emit >= emit_interval):
+            yield text_buffer
+            text_buffer = ""
+            last_emit = time.monotonic()
+
+    if text_buffer:
+        yield text_buffer
+    
+
 async def main():
-    test = await fetch_msg("What's my name?", "Bobby")
-    print(test)
+
+    async for chunk in stream_msg_openai([
+        {
+            "role": "user",
+            "content": "Bobby: What is the capital of Canada?"
+        },
+        {
+            "role": "assistant",
+            "content": "The capital of Canada is Ottawa."
+        },
+        {
+            "role": "user",
+            "content": "Bobby: What's the weather like in Toronto right now?"
+        }]):
+        print("CHUNK:", chunk)
 
 if __name__ == "__main__":
     asyncio.run(main())
