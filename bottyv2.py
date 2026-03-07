@@ -36,12 +36,14 @@ SYSTEM_MESSAGE = {
         "You are BottyV2, a helpful assistant for Discord users. "
         "Your name is BottyV2. "
         "User messages will be formatted as \"Username: prompt\". "
-        "You should repspond with only the assistant's reply. "
-        "Respond clearly and concisely, suitable for Discord."
+        "You should respond with only the assistant's reply. "
+        "Respond clearly and concisely, suitable for Discord. "
+        "About web searches: Use only if necessary and HARD limit to 3 searches MAX. "
+        "If more searches are needed, ASK the user first."
     )
 }
 
-mem = ChannelMemory(system_message=SYSTEM_MESSAGE, keep_turns=15)
+mem = ChannelMemory(system_message=SYSTEM_MESSAGE, keep_turns=8)
 channel_locks = defaultdict(asyncio.Lock)
 
 # 
@@ -86,37 +88,45 @@ async def ask(interaction: discord.Interaction, question: str):
         message_buffer = ""
         full_text = ""
 
+        reasoning_buffer = ""
+
         last_message = await interaction.followup.send("…", wait=True)
 
         async for event in stream_msg_openai(history, emit_interval=0.5):
-            # Status: thinking, reasoning, searching, done_searching, text, done
-            t = event["type"]
             chunk = ""
-            if t == "thinking":
-                await last_message.edit(content="Thinking…")
+
+            if event["type"] == "status":
+                status = event["status"]
+                if status == "thinking":
+                    await last_message.edit(content="Thinking…")
+                elif status == "searching":
+                    await last_message.edit(content="Searching the web…")
+                elif status == "done_searching":
+                    await last_message.edit(content="Done searching")
+                elif status == "done":
+                    break
+
+                print(f"Status: {status}")
                 continue
-            elif t == "reasoning":
+
+            elif event["type"] == "reasoning":
+                reasoning_buffer += event["delta"]
+
+                if len(reasoning_buffer) > 1500:
+                    reasoning_buffer = reasoning_buffer[-1000:]
+
+                await last_message.edit(content="**Reasoning…**\n" + "*" + reasoning_buffer + "*")
+                continue
+
+            elif event["type"] == "text":
                 chunk = event["delta"]
-            elif t == "searching":
-                await last_message.edit(content="Searching the web…")
-                continue
-            elif t == "done_searching":
-                await last_message.edit(content="Done searching")
-                continue
-            elif t == "text":
-                chunk = event["delta"]
-            elif t == "done":
-                break
-            elif t == "error":
+
+            elif event["type"] == "error":
                 await last_message.edit(content=f"Error: {event.get('message', 'Unknown error')}")
                 return
 
             message_buffer += chunk
             full_text += chunk
-
-            if t == "reasoning":
-                # Naive approach: Assume reasoning is short
-                message_buffer = "**Reasoning…**\n" + message_buffer
 
             buffer_len = len(message_buffer)
 
@@ -139,6 +149,7 @@ async def ask(interaction: discord.Interaction, question: str):
             
             # Not cutting, keep updating last message
             else:
+                print("Edit")
                 await last_message.edit(content=message_buffer + "…")
 
         await last_message.edit(content=message_buffer)

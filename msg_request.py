@@ -102,7 +102,7 @@ async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
 async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
 
     stream = await client.responses.create(
-        model="gpt-5-mini",
+        model="gpt-5.1-codex-mini",
         input=cast(Any, messages),
         stream=True,
         text={
@@ -112,7 +112,7 @@ async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
             "verbosity": "medium"
         },
         reasoning={
-            "effort": "medium",
+            "effort": "low",
             "summary": "auto"
         },
         tools=[
@@ -122,7 +122,7 @@ async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
                     "type": "approximate",
                     "country": "CA"
                 },
-                "search_context_size": "medium"
+                "search_context_size": "low"
             }
         ],
         store=True,
