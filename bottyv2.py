@@ -71,9 +71,11 @@ async def ask(interaction: discord.Interaction, question: str):
         return
     
     await interaction.response.defer(
-            ephemeral=False
+            ephemeral=False # visible to everyone in channel, not just user
     )
     
+    # Only act in one channel at a time
+    #  (LLM processes one at a time)
     async with channel_locks[channel_id]:
         mem.append_user(channel_id, f"{username}: {question}")
         history = mem.get(channel_id)
@@ -92,7 +94,8 @@ async def ask(interaction: discord.Interaction, question: str):
 
             buffer_len = len(message_buffer)
 
-            # if cutting
+            # If cutting
+            #  (checking for newline or if nearing hard cut-off)
             if buffer_len > BUFFER_SOFT_CUT and "\n" in chunk or buffer_len > BUFFER_HARD_CUT:
                 end_line_index = message_buffer.rfind("\n")
                 if end_line_index == -1:
@@ -100,11 +103,16 @@ async def ask(interaction: discord.Interaction, question: str):
                     if end_line_index == -1:
                         end_line_index = min(BUFFER_HARD_CUT, buffer_len)  # hard cut-off
 
+                # Update last message and start new buffer
                 await last_message.edit(content=message_buffer[:end_line_index + 1])
                 message_buffer = message_buffer[end_line_index + 1:]
-                if chunk:
+
+                # Start new message if there's remaining buffer
+                if chunk: # FIXME: probably change chunk to message_buffer
                     last_message = await interaction.followup.send(message_buffer + "…", wait=True)
-            else: # continue editing last message
+            
+            # Not cutting, keep updating last message
+            else:
                 await last_message.edit(content=message_buffer + "…")
 
         await last_message.edit(content=message_buffer)

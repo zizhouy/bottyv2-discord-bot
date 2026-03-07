@@ -4,14 +4,25 @@ import asyncio
 import json
 import time
 
+from openai import AsyncOpenAI
+
+# URL for local LLM API running through Ollama
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 MODEL = os.getenv("MODEL", "llama3.1:8b")
 
 SYSTEM_MESSAGE = {
     "role": "system",
-    "content": "You are a helpful assistant for Discord users. You're name is BottyV2. Users will send you questions with \"Username: prompt\""
+    "content": (
+        "You are a helpful assistant for Discord users. "
+        "You're name is BottyV2. "
+        "Users will send you questions with \"Username: prompt\"")
 }
 
+# OpenAI
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+
+# Ollama
 async def fetch_msg(prompt: str, user: str = "user") -> str:
     payload = {
         "model": MODEL,
@@ -36,6 +47,7 @@ async def fetch_msg(prompt: str, user: str = "user") -> str:
             
             return data["message"]["content"]
 
+# Ollama
 async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
     payload = {
         "model": MODEL,
@@ -52,6 +64,7 @@ async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
             resp.raise_for_status()
 
             async for raw_line in resp.content:
+                
                 if not raw_line:
                     continue
 
@@ -59,8 +72,7 @@ async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
                 if not line:
                     continue
 
-                # split json checker
-
+                # Split json checker
                 for part in line.splitlines():
                     data = json.loads(part)
                     
@@ -78,9 +90,46 @@ async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
 
                     if done:
                         break
+
     if buffer:
         yield "".join(buffer)
 
+# OpenAI
+# TODO: Complete
+async def stream_msg_openai():
+    client = AsyncOpenAI(
+        api_key=OPENAI_API_KEY
+    )
+
+    stream = await client.responses.create(
+        model="gpt-5-mini",
+        input=[],
+        text={
+            "format": {
+                "type": "text"
+            },
+            "verbosity": "medium"
+        },
+        reasoning={
+            "effort": "medium",
+            "summary": "auto"
+        },
+        tools=[
+            {
+                "type": "web_search",
+                "user_location": {
+                    "type": "approximate",
+                    "country": "CA"
+                },
+                "search_context_size": "medium"
+            }
+        ],
+        store=True,
+        include=[
+            "reasoning.encrypted_content",
+            "web_search_call.action.sources"
+        ]
+    )
 
 async def main():
     test = await fetch_msg("What's my name?", "Bobby")
