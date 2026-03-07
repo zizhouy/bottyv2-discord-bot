@@ -88,9 +88,35 @@ async def ask(interaction: discord.Interaction, question: str):
 
         last_message = await interaction.followup.send("…", wait=True)
 
-        async for chunk in stream_msg_openai(history, emit_interval=0.5):
+        async for event in stream_msg_openai(history, emit_interval=0.5):
+            # Status: thinking, reasoning, searching, done_searching, text, done
+            t = event["type"]
+            chunk = ""
+            if t == "thinking":
+                await last_message.edit(content="Thinking…")
+                continue
+            elif t == "reasoning":
+                chunk = event["delta"]
+            elif t == "searching":
+                await last_message.edit(content="Searching the web…")
+                continue
+            elif t == "done_searching":
+                await last_message.edit(content="Done searching")
+                continue
+            elif t == "text":
+                chunk = event["delta"]
+            elif t == "done":
+                break
+            elif t == "error":
+                await last_message.edit(content=f"Error: {event.get('message', 'Unknown error')}")
+                return
+
             message_buffer += chunk
-            full_text += chunk    
+            full_text += chunk
+
+            if t == "reasoning":
+                # Naive approach: Assume reasoning is short
+                message_buffer = "**Reasoning…**\n" + message_buffer
 
             buffer_len = len(message_buffer)
 

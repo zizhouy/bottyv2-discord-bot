@@ -145,28 +145,58 @@ async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
     # completed                     -
 
     text_buffer = ""
+    reasoning_buffer = ""
     last_emit = time.monotonic()
+    last_status = None
 
     async for event in stream:
 
         t = event.type
+
+        if t != "response.reasoning_summary_text.delta":
+            if last_status == "reasoning":
+                # Emit any buffered reasoning summary before changing status
+                if reasoning_buffer:
+                    yield {"type": "reasoning", "delta": reasoning_buffer}
+                    reasoning_buffer = ""
         
         if t in ("response.created", "response.in_progress"):
-            status = "thinking"
+            if last_status != "thinking":
+                last_status = "thinking"
+                yield {"type": "status", "status": "thinking"}
 
         elif t == "response.reasoning_summary_text.delta":
-            status = "reasoning"
-            # optional: accumulate summary text
+            if last_status != "reasoning":
+                last_status = "reasoning"
+                yield {"type": "status", "status": "reasoning"}
+
+            # Thinking summary
+            reasoning_buffer += getattr(event, "delta", "")
+
+            # Emit buffered reasoning summary at intervals
+            now = time.monotonic()
+            if reasoning_buffer and (now - last_emit >= emit_interval):
+                yield {"type": "reasoning", "delta": reasoning_buffer}
+                reasoning_buffer = ""
+                last_emit = now
 
         elif t == "response.web_search_call.searching":
-            status = "searching_web"
+            last_status = "searching"
+            yield {"type": "status", "status": "searching"}
 
         elif t == "response.web_search_call.completed":
-            status = "writing_answer"
+            last_status = "done_searching"
+            payload = {"type": "status", "status": "done_searching"}
+
+            action = getattr(event, "action", None)
+            if action:
+                payload["action"] = action
+
+            yield payload
 
         elif t == "response.output_text.delta":
-            # NOTE: type: ignore because elif t == "..." should guarantee .delta exists
-            text_buffer += event.delta # type: ignore
+            last_status = "writing"
+            text_buffer += getattr(event, "delta", "")
 
         elif t == "response.output_text.done":
             pass
@@ -175,16 +205,28 @@ async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
             pass
 
         elif t == "response.completed":
-            status = "done"
+            last_status = "done"
+            if text_buffer:
+                yield {"type": "text", "delta": text_buffer}
+                text_buffer = ""
+
+            yield {"type": "status", "status": "done"}
+
+        elif t == "error":
+            yield {
+                "type": "error",
+                "message": getattr(event, "message", "Unknown stream error"),
+            }
         
+        # Emit buffered text at intervals
         now = time.monotonic()
         if text_buffer and (now - last_emit >= emit_interval):
-            yield text_buffer
+            yield {"type": "text", "delta": text_buffer}
             text_buffer = ""
-            last_emit = time.monotonic()
+            last_emit = now
 
     if text_buffer:
-        yield text_buffer
+        yield {"type": "text", "delta": text_buffer}
     
 
 async def main():
@@ -201,8 +243,8 @@ async def main():
         {
             "role": "user",
             "content": "Bobby: What's the weather like in Toronto right now?"
-        }]):
-        print("CHUNK:", chunk)
+        }], emit_interval=0.5):
+        print(chunk)
 
 if __name__ == "__main__":
     asyncio.run(main())
