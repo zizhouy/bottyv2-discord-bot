@@ -38,4 +38,5 @@ class ChannelMemory:
         self._append(channel_id, "assistant", content)
         self._trim_turns(channel_id)
 
-    
+    def set_system_message(self, channel_id: int, system_message: Message):
+        self._system_message = dict(system_message)

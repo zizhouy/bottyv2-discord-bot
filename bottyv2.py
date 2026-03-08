@@ -4,9 +4,12 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from collections import defaultdict
+from datetime import datetime, timezone
 
 from msg_request import stream_msg, stream_msg_openai
 from memory import ChannelMemory
+from heartbeat import heartbeat_task
+from search import init_http_session, close_http_session
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -78,6 +81,13 @@ async def ask(interaction: discord.Interaction, question: str):
     # Only act in one channel at a time
     #  (LLM processes one at a time)
     async with channel_locks[channel_id]:
+
+        # Update with current date
+        now = datetime.now(timezone.utc).strftime("%A, %Y-%m-%d at %H:%M UTC")
+        time_updated_system_message = SYSTEM_MESSAGE.copy()
+        time_updated_system_message["content"] += f" Current time is {now}."
+        mem.set_system_message(channel_id, time_updated_system_message)
+
         mem.append_user(channel_id, f"[Display name: {user.display_name} | Username {user.name} | User ID: {user.id} ]\n{question}")
         history = mem.get(channel_id)
     
@@ -114,8 +124,12 @@ async def ask(interaction: discord.Interaction, question: str):
                 if len(reasoning_buffer) > 1500:
                     reasoning_buffer = reasoning_buffer[-1000:]
 
-                await last_message.edit(content="**Reasoning…**\n" + "*" + reasoning_buffer + "*")
+                await last_message.edit(content=f"**Reasoning…**\n*{reasoning_buffer}*")
                 continue
+
+            elif event["type"] == "tool":
+                if event["tool_name"] == "web_serach":
+                    await last_message.edit(content=f"**Reasoning…**\n*{reasoning_buffer}*\n**Searching: {event["args"]}")
 
             elif event["type"] == "text":
                 chunk = event["delta"]
@@ -150,7 +164,6 @@ async def ask(interaction: discord.Interaction, question: str):
                     last_message = await interaction.followup.send("…", wait=True)
 
             # Done/Not cutting, just update message
-            print("Edit")
             await last_message.edit(content=message_buffer + "…")
 
         await last_message.edit(content=message_buffer)
@@ -160,9 +173,10 @@ async def ask(interaction: discord.Interaction, question: str):
 # alive heartbeat task
 @bot.event
 async def on_ready():
-    print(f'We have logged in as {bot.user}')
-    from heartbeat import heartbeat_task
+    await init_http_session()
     bot.loop.create_task(heartbeat_task())
+
+    print(f'We have logged in as {bot.user}')
 
 
 bot.run(TOKEN)
