@@ -131,18 +131,6 @@ async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
         ]
     )
 
-    # Response types we care about: (response.<type>)
-    # created                       - "Thinking…"
-    # in_progress                   - "Thinking…"
-    # output_item.added             - 
-    # output_text.delta             - for streaming chunks
-    # output_text.done              - specific part is done
-    # output_item.done              - 
-    # reasoning_summary_text.delta  - "Planning…"
-    # web_search_call.searching     - "Searching the web…"
-    # web_search_call.completed     - "Found sources…"
-    # completed                     -
-
     text_buffer = ""
     reasoning_buffer = ""
     last_emit = time.monotonic()

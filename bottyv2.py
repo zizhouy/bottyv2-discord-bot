@@ -38,8 +38,7 @@ SYSTEM_MESSAGE = {
         "User messages will be formatted as \"Username: prompt\". "
         "You should respond with only the assistant's reply. "
         "Respond clearly and concisely, suitable for Discord. "
-        "About web searches: Use only if necessary and HARD limit to 3 searches MAX. "
-        "If more searches are needed, ASK the user first."
+        "Use web search only if absolutely necessary and at most once."
     )
 }
 
@@ -65,10 +64,10 @@ async def setup_hook():
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def ask(interaction: discord.Interaction, question: str):
     channel_id = interaction.channel_id or -1
-    username = interaction.user.display_name
+    user = interaction.user
 
-    print(f"User: {username}\nChannel: {channel_id}\nQuestion: {question}")
-    if interaction.user.id not in ALLOWED_USERS:
+    print(f"User: {user.display_name}\nChannel: {channel_id}\nQuestion: {question}")
+    if user.id not in ALLOWED_USERS:
         await interaction.response.send_message("You are not authorized to use this command.", ephemeral=True)
         return
     
@@ -79,7 +78,7 @@ async def ask(interaction: discord.Interaction, question: str):
     # Only act in one channel at a time
     #  (LLM processes one at a time)
     async with channel_locks[channel_id]:
-        mem.append_user(channel_id, f"{username}: {question}")
+        mem.append_user(channel_id, f"[Display name: {user.display_name} | Username {user.name} | User ID: {user.id} ]\n{question}")
         history = mem.get(channel_id)
     
         # Show user message
