@@ -37,11 +37,9 @@ SYSTEM_MESSAGE = {
     "role": "system",
     "content": (
         "You are BottyV2, a helpful assistant for Discord users. "
-        "Your name is BottyV2. "
-        "User messages will be formatted as \"Username: prompt\". "
         "You should respond with only the assistant's reply. "
         "Respond clearly and concisely, suitable for Discord. "
-        "Use web search only if absolutely necessary and at most once."
+        "Use web search only if necessary and at most twice."
     )
 }
 
@@ -128,8 +126,14 @@ async def ask(interaction: discord.Interaction, question: str):
                 continue
 
             elif event["type"] == "tool":
-                if event["tool_name"] == "web_serach":
-                    await last_message.edit(content=f"**Reasoning…**\n*{reasoning_buffer}*\n**Searching: {event["args"]}")
+                if event["tool_name"] == "web_search":
+                    query = event["args"]["query"]
+
+                    await last_message.edit(
+                        content=f"**Reasoning…**\n*{reasoning_buffer}*\n**Searching:** {query}"
+                    )
+
+                continue
 
             elif event["type"] == "text":
                 chunk = event["delta"]

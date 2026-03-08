@@ -58,12 +58,34 @@ async def web_search_brave(query: str, items: int = 3, description_length: int =
 
     top_source = None
     if results:
-        excerpt = await fetch_top_source_excerpt(results[0]["url"], max_chars=1500)
+        excerpt = await fetch_top_source_excerpt(results[0]["url"], max_chars=3000)
         top_source = {
             "title": results[0]["title"],
             "url": results[0]["url"],
             "excerpt": excerpt,
         }
+
+    data = {
+        "original_query": query,
+        "results": results,
+        "top_source": top_source,
+    }
+
+    print("=== Search results ===")
+    for i, result in enumerate(data["results"], start=1):
+        print(f"[{i}] {result['title']}")
+        print(f"URL: {result['url']}")
+        print(f"Description: {result['description']}")
+        print()
+
+    print("=== Top source ===")
+    top = data["top_source"]
+    if top:
+        print(f"Title: {top['title']}")
+        print(f"URL: {top['url']}")
+        print(f"Excerpt: {top['excerpt'][:500]}")
+    else:
+        print("No top source available.")
 
     return {
         "original_query": query,

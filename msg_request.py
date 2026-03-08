@@ -108,7 +108,8 @@ async def stream_msg_openai(
     conversation_items: list[Any] = list(messages)
 
     # Safety loop to prevent too many searches
-    for _step in range(max_steps):
+    for step in range(max_steps):
+        allow_tools = step < 4
 
         stream = await client.responses.create(
             model="gpt-5.1-codex-mini",
@@ -124,8 +125,8 @@ async def stream_msg_openai(
                 "effort": "low",
                 "summary": "auto"
             },
-            tools=cast(Any, TOOLS),
-            tool_choice="auto",
+            tools=cast(Any, TOOLS) if allow_tools else [],
+            tool_choice="auto" if allow_tools else "none",
             store=True,
             include=[
                 "reasoning.encrypted_content",
@@ -265,10 +266,10 @@ async def stream_msg_openai(
                 }
             )
 
-            print("TOOL NAME:", tool_name)
-            print("CALL ID:", call_id)
-            print("RAW ARGS:", raw_args)
-            print("TOOL RESULT:", tool_result)
+            # print("TOOL NAME:", tool_name)
+            # print("CALL ID:", call_id)
+            # print("RAW ARGS:", raw_args)
+            # print("TOOL RESULT:", tool_result)
 
 
     # End protection for loop
