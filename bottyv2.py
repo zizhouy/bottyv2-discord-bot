@@ -125,6 +125,7 @@ async def ask(interaction: discord.Interaction, question: str):
                 await last_message.edit(content=f"Error: {event.get('message', 'Unknown error')}")
                 return
 
+            
             message_buffer += chunk
             full_text += chunk
 
@@ -132,25 +133,26 @@ async def ask(interaction: discord.Interaction, question: str):
 
             # If cutting
             #  (checking for newline or if nearing hard cut-off)
-            if buffer_len > BUFFER_SOFT_CUT and "\n" in chunk or buffer_len > BUFFER_HARD_CUT:
-                end_line_index = message_buffer.rfind("\n")
-                if end_line_index == -1:
-                    end_line_index = message_buffer.rfind(". ") + 1
-                    if end_line_index == -1:
-                        end_line_index = min(BUFFER_HARD_CUT, buffer_len)  # hard cut-off
+            while buffer_len > BUFFER_SOFT_CUT and "\n" in chunk or buffer_len > BUFFER_HARD_CUT:
+                end_line_index = BUFFER_HARD_CUT # hard cutoff
+                for end_token in ["\n", ". ", "! ", "? ", "-", ", ", " "]: # possible "nice" break points
+                    idx = message_buffer[:BUFFER_HARD_CUT].rfind(end_token)
+                    if idx != -1:
+                        end_line_index = idx + (len(end_token) if end_token.strip() else 0)
+                        break
 
                 # Update last message and start new buffer
                 await last_message.edit(content=message_buffer[:end_line_index + 1])
                 message_buffer = message_buffer[end_line_index + 1:]
+                buffer_len = len(message_buffer)
 
-                # Start new message if there's remaining buffer
-                if chunk: # FIXME: probably change chunk to message_buffer
-                    last_message = await interaction.followup.send(message_buffer + "…", wait=True)
-            
-            # Not cutting, keep updating last message
-            else:
-                print("Edit")
-                await last_message.edit(content=message_buffer + "…")
+                # Start new message if there's still buffer
+                if message_buffer.strip():
+                    last_message = await interaction.followup.send("…", wait=True)
+
+            # Done/Not cutting, just update message
+            print("Edit")
+            await last_message.edit(content=message_buffer + "…")
 
         await last_message.edit(content=message_buffer)
         print(f"Full text -----\n{full_text}\n-----")

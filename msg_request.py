@@ -98,7 +98,6 @@ async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
         yield "".join(buffer)
 
 # OpenAI
-# TODO: Add support for sending status updates based on response types (thinking, searching, etc.)
 async def stream_msg_openai(messages: list[dict], emit_interval: float = 1.0):
 
     stream = await client.responses.create(
