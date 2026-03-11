@@ -7,7 +7,7 @@ from typing import cast, Any
 
 from openai import AsyncOpenAI
 
-from search import close_http_session, init_http_session, web_search_brave
+from search import web_search_brave
 
 # URL for local LLM API running through Ollama
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
@@ -294,6 +294,10 @@ SEARCH_TOOL = {
     },
 }
 
+MAL_TOOL = {
+    
+}
+
 TOOLS = [SEARCH_TOOL]
 
 async def run_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -303,8 +307,6 @@ async def run_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
 
 
 async def main():
-    await init_http_session()
-
     msgs = [
         {
             "role": "developer",
@@ -331,11 +333,8 @@ async def main():
         },
     ]
 
-    try:
-        async for chunk in stream_msg_openai(msgs, emit_interval=0.5):
-            print(chunk)
-    finally:
-        await close_http_session()
+    async for chunk in stream_msg_openai(msgs, emit_interval=0.5):
+        print(chunk)
 
 if __name__ == "__main__":
     asyncio.run(main())

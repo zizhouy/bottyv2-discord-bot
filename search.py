@@ -4,31 +4,13 @@ import os
 
 import trafilatura
 
+from http_client import get_http_session
+
 BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY")
-
-http_session: aiohttp.ClientSession | None = None
-
-
-async def init_http_session():
-    global http_session
-    if http_session is None or http_session.closed:
-        http_session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=10),
-            headers={
-                "User-Agent": "bottyv2/1.0"
-            },
-        )
-
-
-async def close_http_session():
-    global http_session
-    if http_session is not None and not http_session.closed:
-        await http_session.close()
 
 
 async def web_search_brave(query: str, items: int = 3, description_length: int = 200):
-    if http_session is None or http_session.closed:
-        raise RuntimeError("HTTP session is not initialized")
+    http_session = await get_http_session()
 
     if not BRAVE_SEARCH_API_KEY:
         raise RuntimeError("BRAVE_SEARCH_API_KEY is not set")
@@ -95,8 +77,7 @@ async def web_search_brave(query: str, items: int = 3, description_length: int =
 
 
 async def fetch_top_source_excerpt(url: str, max_chars: int = 1500) -> str:
-    if http_session is None or http_session.closed:
-        raise RuntimeError("HTTP session is not initialized")
+    http_session = await get_http_session()
 
     try:
         async with http_session.get(url) as resp:
@@ -120,33 +101,27 @@ async def fetch_top_source_excerpt(url: str, max_chars: int = 1500) -> str:
 
 
 async def main():
-    await init_http_session()
-    try:
-        data = await web_search_brave(
-            "Kunon light novel volume 6",
-            items=3,
-            description_length=200,
-        )
+    data = await web_search_brave(
+        "Kunon light novel volume 6",
+        items=3,
+        description_length=200,
+    )
 
-        print("=== Search results ===")
-        for i, result in enumerate(data["results"], start=1):
-            print(f"[{i}] {result['title']}")
-            print(f"URL: {result['url']}")
-            print(f"Description: {result['description']}")
-            print()
+    print("=== Search results ===")
+    for i, result in enumerate(data["results"], start=1):
+        print(f"[{i}] {result['title']}")
+        print(f"URL: {result['url']}")
+        print(f"Description: {result['description']}")
+        print()
 
-        print("=== Top source ===")
-        top = data["top_source"]
-        if top:
-            print(f"Title: {top['title']}")
-            print(f"URL: {top['url']}")
-            print(f"Excerpt: {top['excerpt'][:500]}")
-        else:
-            print("No top source available.")
-
-    finally:
-        await close_http_session()
-
+    print("=== Top source ===")
+    top = data["top_source"]
+    if top:
+        print(f"Title: {top['title']}")
+        print(f"URL: {top['url']}")
+        print(f"Excerpt: {top['excerpt'][:500]}")
+    else:
+        print("No top source available.")
 
 if __name__ == "__main__":
     asyncio.run(main())

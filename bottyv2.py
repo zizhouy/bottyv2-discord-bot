@@ -1,5 +1,6 @@
 import os
 import asyncio
+import json
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -9,7 +10,6 @@ from datetime import datetime, timezone
 from msg_request import stream_msg, stream_msg_openai
 from memory import ChannelMemory
 from heartbeat import heartbeat_task
-from search import init_http_session, close_http_session
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -128,7 +128,8 @@ async def ask(interaction: discord.Interaction, question: str):
 
             elif event["type"] == "tool":
                 if event["tool_name"] == "web_search":
-                    query = event["args"]["query"]
+                    args = json.loads(event["args"])
+                    query = args["query"]
 
                     await last_message.edit(
                         content=f"**Reasoning…**\n*{reasoning_buffer}*\n**Searching:** {query}"
@@ -178,7 +179,6 @@ async def ask(interaction: discord.Interaction, question: str):
 # alive heartbeat task
 @bot.event
 async def on_ready():
-    await init_http_session()
     bot.loop.create_task(heartbeat_task())
 
     print(f'We have logged in as {bot.user}')
