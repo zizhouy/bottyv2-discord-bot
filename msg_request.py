@@ -122,7 +122,7 @@ async def stream_msg_openai(
                 "verbosity": "medium"
             },
             reasoning={
-                "effort": "low",
+                "effort": "medium",
                 "summary": "auto"
             },
             tools=cast(Any, TOOLS) if allow_tools else [],

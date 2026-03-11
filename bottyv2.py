@@ -39,7 +39,7 @@ SYSTEM_MESSAGE = {
         "You are BottyV2, a helpful assistant for Discord users. "
         "You should respond with only the assistant's reply. "
         "Respond clearly and concisely, suitable for Discord. "
-        "Use web search only if necessary and at most twice."
+        "Use web search only if necessary or recent data is needed and at most twice."
     )
 }
 
@@ -84,7 +84,8 @@ async def ask(interaction: discord.Interaction, question: str):
         now = datetime.now(timezone.utc).strftime("%A, %Y-%m-%d at %H:%M UTC")
         time_updated_system_message = SYSTEM_MESSAGE.copy()
         time_updated_system_message["content"] += f" Current time is {now}."
-        mem.set_system_message(channel_id, time_updated_system_message)
+        mem.set_channel_system_message(channel_id, time_updated_system_message)
+        print("System message: " + time_updated_system_message["content"])
 
         mem.append_user(channel_id, f"[Display name: {user.display_name} | Username {user.name} | User ID: {user.id} ]\n{question}")
         history = mem.get(channel_id)
@@ -164,7 +165,7 @@ async def ask(interaction: discord.Interaction, question: str):
                 buffer_len = len(message_buffer)
 
                 # Start new message if there's still buffer
-                if message_buffer.strip():
+                if message_buffer:
                     last_message = await interaction.followup.send("…", wait=True)
 
             # Done/Not cutting, just update message

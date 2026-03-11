@@ -38,5 +38,22 @@ class ChannelMemory:
         self._append(channel_id, "assistant", content)
         self._trim_turns(channel_id)
 
-    def set_system_message(self, channel_id: int, system_message: Message):
+    def set_default_system_message(self, system_message: Message):
+        if system_message.get("role") != "system":
+            raise ValueError("system_message must have role 'system'")
+        if "content" not in system_message:
+            raise ValueError("system_message must have 'content' field")
         self._system_message = dict(system_message)
+
+    def set_channel_system_message(self, channel_id: int, system_message: Message):
+        if system_message.get("role") != "system":
+            raise ValueError("system_message must have role 'system'")
+        if "content" not in system_message:
+            raise ValueError("system_message must have 'content' field")
+
+        msg = dict(system_message)
+        history = self.get(channel_id)
+        if history and history[0].get("role") == "system":
+            history[0] = msg
+        else:
+            history.insert(0, msg)
