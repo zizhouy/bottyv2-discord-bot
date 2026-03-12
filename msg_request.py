@@ -7,7 +7,9 @@ from typing import cast, Any
 
 from openai import AsyncOpenAI
 
+from http_client import close_http_session
 from search import web_search_brave
+from mal_api import get_anime_list, get_anime_details, get_anime_ranking, get_seasonal_anime, get_manga_list, get_manga_details, get_manga_ranking
 
 # URL for local LLM API running through Ollama
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
@@ -107,9 +109,13 @@ async def stream_msg_openai(
     # Conversation details for tools
     conversation_items: list[Any] = list(messages)
 
+    # Control use count of tools
+    allowed_tools = TOOLS.copy()
+    search_use = 0
+
     # Safety loop to prevent too many searches
     for step in range(max_steps):
-        allow_tools = step < 4
+        allow_tools = step < 8
 
         stream = await client.responses.create(
             model="gpt-5.1-codex-mini",
@@ -125,8 +131,9 @@ async def stream_msg_openai(
                 "effort": "medium",
                 "summary": "auto"
             },
-            tools=cast(Any, TOOLS) if allow_tools else [],
+            tools=cast(Any, allowed_tools) if allow_tools else [],
             tool_choice="auto" if allow_tools else "none",
+            parallel_tool_calls=False,
             store=True,
             include=[
                 "reasoning.encrypted_content",
@@ -255,6 +262,10 @@ async def stream_msg_openai(
                 try:
                     yield {"type": "tool", "tool_name": tool_name, "args": args}
                     tool_result = await run_tool(tool_name, args)
+                    if tool_name == "web_search":
+                        search_use += 1
+                        if search_use >= 3:
+                            allowed_tools[:] = [t for t in allowed_tools if t["name"] != "web_search"]
                 except Exception as e:
                     tool_result = {"error": f"Error running tool {tool_name}: {str(e)}"}
             
@@ -283,7 +294,12 @@ async def stream_msg_openai(
 SEARCH_TOOL = {
     "type": "function",
     "name": "web_search",
-    "description": "Search the web for current information.",
+    "description": (
+        "Search the web for current or external information not available from MyAnimeList. "
+        "Use this for recent news, release announcements, streaming availability, official websites, "
+        "publisher updates, English licensing status, and other up-to-date web information. "
+        "Do not use this for basic anime or manga metadata that MyAnimeList can provide."
+    ),
     "parameters": {
         "type": "object",
         "properties": {
@@ -294,17 +310,233 @@ SEARCH_TOOL = {
     },
 }
 
-MAL_TOOL = {
-    
-}
+MAL_TOOLS = [
+    {
+        "type": "function",
+        "name": "get_anime_list",
+        "description": (
+            "Search MyAnimeList's anime catalog by title. "
+            "Use this for finding anime IDs, matching anime titles, alternate titles, rankings, "
+            "genres, episode counts, studios, airing status, and other catalog metadata."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The anime title to search for."
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of results to skip for pagination.",
+                    "default": 0
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return.",
+                    "default": 5
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "get_anime_details",
+        "description": (
+            "Get detailed catalog information for one anime from MyAnimeList by anime ID. "
+            "Use this after get_anime_list when the user wants synopsis, related anime, recommendations, "
+            "statistics, studios, genres, or other detailed metadata."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "anime_id": {
+                    "type": "integer",
+                    "description": "The MyAnimeList ID of the anime."
+                }
+            },
+            "required": ["anime_id"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "get_anime_ranking",
+        "description": (
+            "Search MyAnimeList's anime catalog by highest rank. "
+            "Use this for finding anime by their ranking."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "rank_type": {
+                    "type": "string",
+                    "description": "The ranking category to use.",
+                    "enum": [
+                        "all",
+                        "airing",
+                        "upcoming",
+                        "tv",
+                        "ova",
+                        "movie",
+                        "special",
+                        "bypopularity",
+                        "favorite"
+                    ]
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of results to skip for pagination.",
+                    "default": 0
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return.",
+                    "default": 5
+                }
+            },
+            "required": ["rank_type"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "get_seasonal_anime",
+        "description": "Get anime from a specific year and season from MyAnimeList. "
+        "Use this when searching for anime from a specific time frame.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "year": {
+                    "type": "integer",
+                    "description": "The year of the anime season, such as 2023."
+                },
+                "season": {
+                    "type": "string",
+                    "description": "The anime season.",
+                    "enum": ["winter", "spring", "summer", "fall"]
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of results to skip for pagination.",
+                    "default": 0
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return.",
+                    "default": 5
+                }
+            },
+            "required": ["year", "season"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "get_manga_list",
+        "description": (
+            "Search MyAnimeList's manga catalog by title. "
+            "Use this for finding manga IDs, matching manga titles, alternate titles, rankings, "
+            "genres, length, author, publishing status, and other catalog metadata."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The manga title to search for."
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of results to skip for pagination.",
+                    "default": 0
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return.",
+                    "default": 5
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "get_manga_details",
+        "description": (
+            "Get detailed catalog information for one manga from MyAnimeList by manga ID. "
+            "Use this after get_manga_list when the user wants synopsis, related content, recommendations, "
+            "statistics, or other detailed metadata."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "manga_id": {
+                    "type": "integer",
+                    "description": "The MyAnimeList ID of the manga."
+                }
+            },
+            "required": ["manga_id"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "get_manga_ranking",
+        "description": "Get ranked manga from MyAnimeList.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "rank_type": {
+                    "type": "string",
+                    "description": "The ranking category to use.",
+                    "enum": [
+                        "all",
+                        "manga",
+                        "novels",
+                        "oneshots",
+                        "doujin",
+                        "manhwa",
+                        "manhua",
+                        "bypopularity",
+                        "favorite"
+                    ]
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of results to skip for pagination.",
+                    "default": 0
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return.",
+                    "default": 5
+                }
+            },
+            "required": ["rank_type"]
+        }
+    }
+]
 
-TOOLS = [SEARCH_TOOL]
+TOOLS = [SEARCH_TOOL] + MAL_TOOLS
+
+
+TOOL_MAP = {
+    "get_anime_list": get_anime_list,
+    "get_anime_details": get_anime_details,
+    "get_anime_ranking": get_anime_ranking,
+    "get_seasonal_anime": get_seasonal_anime,
+    "get_manga_list": get_manga_list,
+    "get_manga_details": get_manga_details,
+    "get_manga_ranking": get_manga_ranking,
+}
 
 async def run_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     if tool_name == SEARCH_TOOL["name"]:
         return await web_search_brave(args["query"])
-    return {"error": f"Unknown tool: {tool_name}"}
 
+    tool = TOOL_MAP.get(tool_name)
+    if tool is None:
+        return {"error": f"Unknown tool: {tool_name}"}
+
+    return await tool(**args)
 
 async def main():
     msgs = [
@@ -329,12 +561,16 @@ async def main():
         },
         {
             "role": "user",
-            "content": "Bobby: Who is the current prime minister of Canada?"
+            "content": "Bobby: What's currently airing this season of anime?"
         },
     ]
 
-    async for chunk in stream_msg_openai(msgs, emit_interval=0.5):
-        print(chunk)
+    try:
+        async for chunk in stream_msg_openai(msgs, emit_interval=0.5):
+            print(chunk)
+    finally:
+        await close_http_session()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
