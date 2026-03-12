@@ -39,7 +39,7 @@ SYSTEM_MESSAGE = {
         "You are BottyV2, a helpful assistant for Discord users. "
         "You should respond with only the assistant's reply. "
         "Respond clearly and concisely, suitable for Discord. "
-        "Use web search only if necessary or recent data is needed and at most twice."
+        "Use web_search only if necessary or recent data is needed and at most twice."
     )
 }
 
@@ -127,12 +127,19 @@ async def ask(interaction: discord.Interaction, question: str):
                 continue
 
             elif event["type"] == "tool":
-                if event["tool_name"] == "web_search":
-                    args = json.loads(event["args"])
+                tool_name = event["tool_name"]
+                args = event["args"]
+                print(f"Tooling: {tool_name} : {args}")
+                if tool_name == "web_search":
                     query = args["query"]
 
                     await last_message.edit(
                         content=f"**Reasoning…**\n*{reasoning_buffer}*\n**Searching:** {query}"
+                    )
+                else:
+                    await last_message.edit(
+                        content=(f"**Reasoning…**\n*{reasoning_buffer}*\n"
+                        f"**Running:** {tool_name} : {args}")
                     )
 
                 continue

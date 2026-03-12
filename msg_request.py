@@ -118,7 +118,7 @@ async def stream_msg_openai(
         allow_tools = step < 8
 
         stream = await client.responses.create(
-            model="gpt-5.1-codex-mini",
+            model="gpt-5-mini",
             input=cast(Any, conversation_items),
             stream=True,
             text={
@@ -295,9 +295,8 @@ SEARCH_TOOL = {
     "type": "function",
     "name": "web_search",
     "description": (
-        "Search the web for current or external information not available from MyAnimeList. "
-        "Use this for recent news, release announcements, streaming availability, official websites, "
-        "publisher updates, English licensing status, and other up-to-date web information. "
+        "Search the web for current or external information. "
+        "Use this for recent news, missing information, or up-to-date information. "
         "Do not use this for basic anime or manga metadata that MyAnimeList can provide."
     ),
     "parameters": {
@@ -317,7 +316,8 @@ MAL_TOOLS = [
         "description": (
             "Search MyAnimeList's anime catalog by title. "
             "Use this for finding anime IDs, matching anime titles, alternate titles, rankings, "
-            "genres, episode counts, studios, airing status, and other catalog metadata."
+            "genres, episode counts, studios, airing status, and other catalog metadata. "
+            "Use offset pagination to skip closer results."
         ),
         "parameters": {
             "type": "object",
@@ -334,7 +334,8 @@ MAL_TOOLS = [
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of results to return.",
-                    "default": 5
+                    "default": 5,
+                    "maximum": 20
                 }
             },
             "required": ["query"]
@@ -363,8 +364,9 @@ MAL_TOOLS = [
         "type": "function",
         "name": "get_anime_ranking",
         "description": (
-            "Search MyAnimeList's anime catalog by highest rank. "
-            "Use this for finding anime by their ranking."
+            "Search MyAnimeList's anime catalog by ranking. "
+            "Use this for finding anime by their ranking. "
+            "Use offset pagination to find lower ranks."
         ),
         "parameters": {
             "type": "object",
@@ -392,7 +394,8 @@ MAL_TOOLS = [
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of results to return.",
-                    "default": 5
+                    "default": 5,
+                    "maximum": 20
                 }
             },
             "required": ["rank_type"]
@@ -401,8 +404,10 @@ MAL_TOOLS = [
     {
         "type": "function",
         "name": "get_seasonal_anime",
-        "description": "Get anime from a specific year and season from MyAnimeList. "
-        "Use this when searching for anime from a specific time frame.",
+        "description": (
+            "Get anime from a specific year and season from MyAnimeList. "
+            "Use this when searching for anime from a specific time frame. "
+            "Use offset pagination to get lower ranked results."),
         "parameters": {
             "type": "object",
             "properties": {
@@ -423,7 +428,8 @@ MAL_TOOLS = [
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of results to return.",
-                    "default": 5
+                    "default": 5,
+                    "maximum": 20
                 }
             },
             "required": ["year", "season"]
@@ -435,7 +441,8 @@ MAL_TOOLS = [
         "description": (
             "Search MyAnimeList's manga catalog by title. "
             "Use this for finding manga IDs, matching manga titles, alternate titles, rankings, "
-            "genres, length, author, publishing status, and other catalog metadata."
+            "genres, length, author, publishing status, and other catalog metadata. "
+            "Use offset pagination to get skip closer results."
         ),
         "parameters": {
             "type": "object",
@@ -452,7 +459,8 @@ MAL_TOOLS = [
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of results to return.",
-                    "default": 5
+                    "default": 5,
+                    "maximum": 20
                 }
             },
             "required": ["query"]
@@ -480,7 +488,9 @@ MAL_TOOLS = [
     {
         "type": "function",
         "name": "get_manga_ranking",
-        "description": "Get ranked manga from MyAnimeList.",
+        "description": (
+            "Get ranked manga from MyAnimeList. "
+            "Use offset pagination to get lower results."),
         "parameters": {
             "type": "object",
             "properties": {
@@ -507,7 +517,8 @@ MAL_TOOLS = [
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of results to return.",
-                    "default": 5
+                    "default": 5,
+                    "maximum": 20
                 }
             },
             "required": ["rank_type"]

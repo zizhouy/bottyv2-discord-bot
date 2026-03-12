@@ -39,7 +39,7 @@ async def web_search_brave(query: str, items: int = 3, description_length: int =
 
     top_source = None
     if results:
-        excerpt = await fetch_top_source_excerpt(results[0]["url"], max_chars=3000)
+        excerpt = await fetch_top_source_excerpt(results[0]["url"], max_chars=6000)
         top_source = {
             "title": results[0]["title"],
             "url": results[0]["url"],
