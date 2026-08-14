@@ -7,7 +7,7 @@ from discord.ext import commands
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from msg_request import stream_msg, stream_msg_openai
+from msg_request import stream_msg, stream_msg_openai, get_daily_tokens
 from memory import ChannelMemory
 from heartbeat import heartbeat_task
 
@@ -46,9 +46,17 @@ SYSTEM_MESSAGE = {
 mem = ChannelMemory(system_message=SYSTEM_MESSAGE, keep_turns=8)
 channel_locks = defaultdict(asyncio.Lock)
 
+TOKEN_THRESHOLD = 0.9 * 250000
+model = "gpt-5-mini"
+
 # 
 @bot.event
 async def setup_hook():
+    global model
+    daily_tokens = await get_daily_tokens("gpt-5.4")
+    print("Temp model " + model)
+    model = "gpt-5.4" if daily_tokens <= TOKEN_THRESHOLD else "gpt-5-mini"
+
     if TEST_GUILD_ID:
         guild = discord.Object(id=TEST_GUILD_ID)
         bot.tree.copy_global_to(guild=guild)
@@ -64,6 +72,9 @@ async def setup_hook():
 @app_commands.allowed_installs(users=True, guilds=True)
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def ask(interaction: discord.Interaction, question: str):
+    global model
+
+
     channel_id = interaction.channel_id or -1
     user = interaction.user
 
@@ -86,6 +97,7 @@ async def ask(interaction: discord.Interaction, question: str):
         time_updated_system_message["content"] += f" Current time is {now}."
         mem.set_channel_system_message(channel_id, time_updated_system_message)
         print("System message: " + time_updated_system_message["content"])
+        print("Model: " + model)
 
         mem.append_user(channel_id, f"[Display name: {user.display_name} | Username {user.name} | User ID: {user.id} ]\n{question}")
         history = mem.get(channel_id)
@@ -100,7 +112,7 @@ async def ask(interaction: discord.Interaction, question: str):
 
         last_message = await interaction.followup.send("…", wait=True)
 
-        async for event in stream_msg_openai(history, emit_interval=0.5):
+        async for event in stream_msg_openai(history, emit_interval=0.5, model=model):
             chunk = ""
 
             if event["type"] == "status":
@@ -182,6 +194,13 @@ async def ask(interaction: discord.Interaction, question: str):
         await last_message.edit(content=message_buffer)
         print(f"Full text -----\n{full_text}\n-----")
         mem.append_assistant(channel_id, full_text)
+
+        # Swap models if token threshold exceeded
+        daily_tokens = await get_daily_tokens("gpt-5.4")
+        if daily_tokens > TOKEN_THRESHOLD:
+            model = "gpt-5-mini"
+        else:
+            model = "gpt-5.4"
 
 # alive heartbeat task
 @bot.event

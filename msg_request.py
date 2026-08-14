@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 from typing import cast, Any
+from datetime import datetime, timezone
 
 from openai import AsyncOpenAI
 
@@ -25,8 +26,8 @@ SYSTEM_MESSAGE = {
 
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_ADMIN_KEY = os.getenv("OPENAI_ADMIN_KEY")
 client = AsyncOpenAI()
-
 
 # Ollama
 async def fetch_msg(prompt: str, user: str = "user") -> str:
@@ -104,7 +105,8 @@ async def stream_msg(messages: list[dict], emit_interval: float = 1.0):
 async def stream_msg_openai(
         messages: list[dict], 
         emit_interval: float = 1.0, 
-        max_steps: int = 10):
+        max_steps: int = 10,
+        model: str = "gpt-5-mini"):
 
     # Conversation details for tools
     conversation_items: list[Any] = list(messages)
@@ -118,7 +120,7 @@ async def stream_msg_openai(
         allow_tools = step < 8
 
         stream = await client.responses.create(
-            model="gpt-5-mini",
+            model=model,
             input=cast(Any, conversation_items),
             stream=True,
             text={
@@ -548,6 +550,27 @@ async def run_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": f"Unknown tool: {tool_name}"}
 
     return await tool(**args)
+
+
+async def get_daily_tokens(model: str) -> int:
+    now = datetime.now(timezone.utc)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    usage = await client.admin.organization.usage.completions(
+        start_time=int(start.timestamp()),
+        end_time=int(now.timestamp()),
+        bucket_width="1d",
+        group_by=["model"],
+    )
+
+    total = 0
+
+    for bucket in usage.data:
+        for result in bucket.results:
+            if result.model == model:
+                total += result.input_tokens + result.output_tokens
+
+    return total
 
 async def main():
     msgs = [
